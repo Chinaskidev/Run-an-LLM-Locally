@@ -32,12 +32,18 @@ pnpm db:generate                  # genera el cliente Prisma
 pnpm db:migrate --name <nombre>   # crea y aplica una migración
 pnpm dev                          # corre el agente (REPL de consola)
 pnpm typecheck                    # tsc --noEmit (correr tras cada cambio)
-pnpm build                        # compila a dist/
+pnpm build                        # compila a dist/ (vía tsconfig.build.json, sin tests)
+pnpm test                         # smoke test determinista (node:test vía tsx)
 pnpm db:studio                    # UI web para inspeccionar la base
 ```
 
-No hay framework de tests todavía. La verificación se hace con los escenarios
-adversariales del final de la skill (en español Y en inglés).
+`pnpm test` corre un smoke test **determinista y hermético** (sin Postgres ni Ollama):
+valida los schemas Zod, la lógica de las tools (idempotencia, anti-doble-booking,
+zona horaria) con un fake de Prisma en memoria (`src/test/helpers.ts`), y las tres
+invariantes del loop con un `LlmClient` scripteado. Cubre el código-autoridad, no el
+comportamiento del modelo: los escenarios adversariales del final de la skill (no
+cerrar venta, responder en inglés, saber NO llamar una tool) siguen verificándose a
+mano contra Ollama, en español Y en inglés.
 
 ## Arquitectura
 
