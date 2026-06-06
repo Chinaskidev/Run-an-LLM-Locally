@@ -1,5 +1,5 @@
 import type { PrismaClient } from "@prisma/client";
-import type { ZodType } from "zod";
+import type { ZodType, ZodTypeDef } from "zod";
 
 import type { Logger } from "../logger.js";
 
@@ -37,7 +37,9 @@ interface DefineToolOptions<A> {
   readonly name: string;
   readonly description: string;
   readonly parameters: Record<string, unknown>;
-  readonly schema: ZodType<A>;
+  // La entrada es `unknown`: los args del modelo llegan crudos y el schema puede
+  // transformarlos (p. ej. string ISO → Date). El executor recibe el tipo ya validado A.
+  readonly schema: ZodType<A, ZodTypeDef, unknown>;
   readonly execute: (args: A, ctx: ToolContext) => Promise<ToolOutcome>;
 }
 

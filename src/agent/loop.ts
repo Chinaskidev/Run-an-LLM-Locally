@@ -6,7 +6,7 @@ import type { ChatMessage, LlmClient } from "./types.js";
 
 const MAX_STEPS = 5;
 
-const LIMITE_ALCANZADO =
+export const LIMITE_ALCANZADO =
   "Disculpá, me enredé y no pude completar la acción. ¿Me repetís el dato que falta o lo intentamos de otra forma?";
 
 interface AgentDeps {
