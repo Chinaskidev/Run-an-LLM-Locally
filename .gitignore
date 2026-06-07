@@ -6,3 +6,6 @@ dist/
 # Prisma
 prisma/*.db
 prisma/*.db-journal
+
+# DOCUMENTS
+docs/
