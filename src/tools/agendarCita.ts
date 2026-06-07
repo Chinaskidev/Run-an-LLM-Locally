@@ -16,13 +16,13 @@ function enHoraLocal(fecha: Date): string {
 export const agendarCita = defineTool({
   name: "agendar_cita",
   description:
-    "Agenda una cita para un lead YA guardado. El campo 'lead' es el nombre o teléfono del cliente tal como lo guardaste. Las horas válidas caen en punto (:00) o y media (:30) y deben ser futuras.",
+    "Agenda una cita para un lead YA guardado. El campo 'lead' es el nombre, teléfono o email del cliente tal como lo guardaste. Las horas válidas caen en punto (:00) o y media (:30) y deben ser futuras.",
   parameters: {
     type: "object",
     properties: {
       lead: {
         type: "string",
-        description: "Nombre o teléfono del lead ya guardado",
+        description: "Nombre, teléfono o email del lead ya guardado",
       },
       fecha_hora: {
         type: "string",
@@ -40,6 +40,7 @@ export const agendarCita = defineTool({
       where: {
         OR: [
           { telefono: args.lead },
+          { email: args.lead },
           { nombre: { equals: args.lead, mode: "insensitive" } },
         ],
       },

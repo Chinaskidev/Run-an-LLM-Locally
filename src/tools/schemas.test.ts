@@ -3,9 +3,27 @@ import assert from "node:assert/strict";
 
 import { guardarLeadSchema, agendarCitaSchema } from "./schemas.js";
 
-test("guardarLead: acepta nombre + interés (teléfono opcional)", () => {
+test("guardarLead: rechaza nombre + interés sin ningún contacto", () => {
   const r = guardarLeadSchema.safeParse({ nombre: "Sandra", interes: "agente IA" });
+  assert.ok(!r.success);
+});
+
+test("guardarLead: acepta nombre + interés + email (sin teléfono)", () => {
+  const r = guardarLeadSchema.safeParse({
+    nombre: "Sandra",
+    interes: "agente IA",
+    email: "sandra@ejemplo.com",
+  });
   assert.ok(r.success);
+});
+
+test("guardarLead: rechaza un email inválido", () => {
+  const r = guardarLeadSchema.safeParse({
+    nombre: "Sandra",
+    interes: "agente IA",
+    email: "no-es-un-email",
+  });
+  assert.ok(!r.success);
 });
 
 test("guardarLead: rechaza si falta el interés", () => {

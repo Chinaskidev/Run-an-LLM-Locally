@@ -1,14 +1,21 @@
 import { z } from "zod";
 
-export const guardarLeadSchema = z.object({
-  nombre: z.string().trim().min(1, "el nombre es obligatorio"),
-  telefono: z
-    .string()
-    .trim()
-    .regex(/^[+0-9][0-9\s-]{6,}$/, "teléfono inválido")
-    .optional(),
-  interes: z.string().trim().min(1, "el interés es obligatorio"),
-});
+export const guardarLeadSchema = z
+  .object({
+    nombre: z.string().trim().min(1, "el nombre es obligatorio"),
+    telefono: z
+      .string()
+      .trim()
+      .regex(/^[+0-9][0-9\s-]{6,}$/, "teléfono inválido")
+      .optional(),
+    email: z.string().trim().email("email inválido").optional(),
+    interes: z.string().trim().min(1, "el interés es obligatorio"),
+  })
+  .refine((d) => d.telefono != null || d.email != null, {
+    message: "hace falta al menos un contacto: teléfono o email",
+    // el error se muestra junto al teléfono, pero aplica a ambos campos
+    path: ["telefono"],
+  });
 
 export type GuardarLeadArgs = z.infer<typeof guardarLeadSchema>;
 
