@@ -11,6 +11,7 @@ model Lead {
   id        String   @id @default(cuid())
   nombre    String
   telefono  String?  @unique
+  email     String?  @unique
   interes   String
   createdAt DateTime @default(now())
 
