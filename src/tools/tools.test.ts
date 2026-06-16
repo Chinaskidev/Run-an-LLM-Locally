@@ -3,8 +3,20 @@ import assert from "node:assert/strict";
 
 import { guardarLead } from "./guardarLead.js";
 import { agendarCita } from "./agendarCita.js";
+import { listarHorarios } from "./listarHorarios.js";
+import { OFFSET_EL_SALVADOR, TZ_EL_SALVADOR } from "./tiempo.js";
 import type { ToolContext } from "./types.js";
 import { createFakeDb, createFakeLogger } from "../test/helpers.js";
+
+interface Horario {
+  etiqueta: string;
+  iso: string;
+}
+
+// El executor garantiza la forma; el cast evita arrastrar `unknown` por todo el test.
+function horariosDe(data: Record<string, unknown>): Horario[] {
+  return data.horarios as Horario[];
+}
 
 function contexto() {
   const db = createFakeDb();
@@ -92,4 +104,55 @@ test("agendarCita: rechaza el doble-booking del mismo horario (P2002)", async ()
   assert.ok(!r.ok);
   assert.match(r.error, /ocupado/);
   assert.equal(db.citas.length, 1);
+});
+
+// Día de la semana de un iso, en El Salvador, en español. Es lo que el cliente lee:
+// si la etiqueta dice "jueves 18" el código debe coincidir, sin desfase.
+function diaSemanaEsperado(iso: string): string {
+  return new Intl.DateTimeFormat("es-SV", {
+    timeZone: TZ_EL_SALVADOR,
+    weekday: "long",
+  }).format(new Date(`${iso}${OFFSET_EL_SALVADOR}`));
+}
+
+test("listarHorarios: ofrece a lo sumo 3, futuros, sin domingos y con etiqueta coherente", async () => {
+  const { ctx } = contexto();
+  const r = await listarHorarios.run({}, ctx);
+  assert.ok(r.ok);
+  const horarios = horariosDe(r.data);
+  assert.ok(horarios.length > 0 && horarios.length <= 3);
+
+  for (const { etiqueta, iso } of horarios) {
+    const instante = new Date(`${iso}${OFFSET_EL_SALVADOR}`);
+    assert.ok(instante.getTime() > Date.now(), `${iso} no es futuro`);
+    const dia = diaSemanaEsperado(iso);
+    assert.notEqual(dia, "domingo", `${iso} cae domingo`);
+    // El bug que perseguimos: que el nombre del día y la fecha no se desfasen.
+    assert.ok(
+      etiqueta.toLowerCase().startsWith(dia),
+      `etiqueta "${etiqueta}" no arranca con "${dia}"`,
+    );
+  }
+});
+
+test("listarHorarios: no propone un horario ya ocupado", async () => {
+  const { db, ctx } = contexto();
+  const primero = await listarHorarios.run({}, ctx);
+  assert.ok(primero.ok);
+  const ocupado = horariosDe(primero.data)[0];
+  assert.ok(ocupado);
+
+  // Ocupamos ese slot tal como lo guardaría agendar_cita (mismo anclaje -06:00).
+  db.citas.push({
+    id: "cita_seed",
+    leadId: "lead_seed",
+    fechaHora: new Date(`${ocupado.iso}${OFFSET_EL_SALVADOR}`),
+    motivo: "ya tomado",
+    createdAt: new Date(),
+  });
+
+  const segundo = await listarHorarios.run({}, ctx);
+  assert.ok(segundo.ok);
+  const isos = horariosDe(segundo.data).map((h) => h.iso);
+  assert.ok(!isos.includes(ocupado.iso), "ofreció un slot ocupado");
 });

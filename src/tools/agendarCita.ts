@@ -2,16 +2,7 @@ import { Prisma } from "@prisma/client";
 
 import { defineTool } from "./types.js";
 import { agendarCitaSchema } from "./schemas.js";
-
-// El instante se guarda en UTC; al humano (modelo incluido) le mostramos la hora de
-// pared de El Salvador, no el UTC, para que confirme "10:00" y no "16:00".
-function enHoraLocal(fecha: Date): string {
-  return fecha.toLocaleString("es-SV", {
-    timeZone: "America/El_Salvador",
-    dateStyle: "full",
-    timeStyle: "short",
-  });
-}
+import { enHoraLocal } from "./tiempo.js";
 
 export const agendarCita = defineTool({
   name: "agendar_cita",

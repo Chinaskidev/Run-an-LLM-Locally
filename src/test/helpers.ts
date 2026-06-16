@@ -131,6 +131,17 @@ export function createFakeDb(): FakeDb {
         citas.push(cita);
         return cita;
       },
+      async findMany({
+        where,
+      }: {
+        where?: { fechaHora?: { gte?: Date } };
+        select?: { fechaHora?: boolean };
+      } = {}): Promise<Array<{ fechaHora: Date }>> {
+        const gte = where?.fechaHora?.gte;
+        return citas
+          .filter((c) => (gte ? c.fechaHora.getTime() >= gte.getTime() : true))
+          .map((c) => ({ fechaHora: c.fechaHora }));
+      },
     },
     message: {
       async create({
