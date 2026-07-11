@@ -156,3 +156,46 @@ test("listarHorarios: no propone un horario ya ocupado", async () => {
   const isos = horariosDe(segundo.data).map((h) => h.iso);
   assert.ok(!isos.includes(ocupado.iso), "ofreció un slot ocupado");
 });
+
+test("listarHorarios: con fecha puntual devuelve solo slots de ese día", async () => {
+  const { ctx } = contexto();
+  const r = await listarHorarios.run({ fecha: "2030-06-10" }, ctx);
+  assert.ok(r.ok);
+  const horarios = horariosDe(r.data);
+  // Día completo y libre: los 18 slots de la grilla 8:00–16:30.
+  assert.equal(horarios.length, 18);
+  for (const { iso } of horarios) {
+    assert.ok(iso.startsWith("2030-06-10T"), `${iso} no es del día pedido`);
+  }
+});
+
+test("listarHorarios: con fecha puntual descuenta los slots ocupados de ese día", async () => {
+  const { db, ctx } = contexto();
+  db.citas.push({
+    id: "cita_seed",
+    leadId: "lead_seed",
+    fechaHora: new Date(`2030-06-10T10:00:00${OFFSET_EL_SALVADOR}`),
+    motivo: "ya tomado",
+    createdAt: new Date(),
+  });
+
+  const r = await listarHorarios.run({ fecha: "2030-06-10" }, ctx);
+  assert.ok(r.ok);
+  const isos = horariosDe(r.data).map((h) => h.iso);
+  assert.ok(!isos.includes("2030-06-10T10:00:00"), "ofreció el slot ocupado");
+  assert.ok(isos.includes("2030-06-10T10:30:00"), "faltó el slot libre contiguo");
+});
+
+test("listarHorarios: con fecha en domingo avisa que está cerrado, sin listar nada", async () => {
+  const { ctx } = contexto();
+  const r = await listarHorarios.run({ fecha: "2030-06-09" }, ctx);
+  assert.ok(!r.ok);
+  assert.match(r.error, /domingo/);
+});
+
+test("listarHorarios: con fecha en el pasado pide una futura", async () => {
+  const { ctx } = contexto();
+  const r = await listarHorarios.run({ fecha: "2020-01-01" }, ctx);
+  assert.ok(!r.ok);
+  assert.match(r.error, /pasó/);
+});
