@@ -5,6 +5,7 @@ import { logger } from "./logger.js";
 import { prisma, disconnectDb } from "./db/client.js";
 import { registry } from "./tools/registry.js";
 import { createOllamaClient } from "./llm/ollama.js";
+import { createOpenRouterClient } from "./llm/openrouter.js";
 import { createAgent } from "./agent/loop.js";
 import { loadSystemPrompt, conContextoTemporal } from "./agent/prompt.js";
 import { startRepl } from "./cli/repl.js";
@@ -16,15 +17,15 @@ async function main(): Promise<void> {
 
   const conversation = await prisma.conversation.create({ data: {} });
   logger.info(
-    { conversationId: conversation.id, model: config.MODEL },
+    { conversationId: conversation.id, provider: config.LLM_PROVIDER, model: config.MODEL },
     "conversación iniciada",
   );
 
-  const llm = createOllamaClient({
-    config,
-    logger,
-    toolDefinitions: registry.definitions,
-  });
+  const llmDeps = { config, logger, toolDefinitions: registry.definitions };
+  const llm =
+    config.LLM_PROVIDER === "openrouter"
+      ? createOpenRouterClient(llmDeps)
+      : createOllamaClient(llmDeps);
 
   const agent = createAgent({
     llm,
