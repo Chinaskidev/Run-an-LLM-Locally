@@ -11,9 +11,9 @@ import { loadSystemPrompt, conContextoTemporal } from "./agent/prompt.js";
 import { startRepl } from "./cli/repl.js";
 
 async function main(): Promise<void> {
-  const systemPrompt =  conContextoTemporal(await loadSystemPrompt(
-    join(process.cwd(), "prompts", "vendedor.md")),
-  );
+  const alma = await loadSystemPrompt(join(process.cwd(), "prompts", "SOUL.md"));
+  const playbook = await loadSystemPrompt(join(process.cwd(), "prompts", "vendedor.md"));
+  const systemPrompt = conContextoTemporal(`${alma}\n\n${playbook}`);
 
   const conversation = await prisma.conversation.create({ data: {} });
   logger.info(
