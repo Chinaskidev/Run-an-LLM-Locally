@@ -3,6 +3,7 @@ import { Prisma } from "@prisma/client";
 import { defineTool } from "./types.js";
 import { agendarCitaSchema } from "./schemas.js";
 import { enHoraLocal } from "./tiempo.js";
+import { validarContraHorario } from "./calendario.js";
 
 export const agendarCita = defineTool({
   name: "agendar_cita",
@@ -42,6 +43,14 @@ export const agendarCita = defineTool({
       return {
         ok: false,
         error: `No encontré ningún lead que coincida con "${args.lead}". Guardá el lead primero con guardar_lead.`,
+      };
+    }
+
+    const fueraDeHorario = await validarContraHorario(ctx.prisma, args.fecha_hora);
+    if (fueraDeHorario !== null) {
+      return {
+        ok: false,
+        error: `No se puede agendar ${enHoraLocal(args.fecha_hora)}: ${fueraDeHorario}. Consultá listar_horarios_disponibles y ofrecé una alternativa.`,
       };
     }
 

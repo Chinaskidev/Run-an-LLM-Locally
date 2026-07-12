@@ -190,7 +190,7 @@ test("listarHorarios: con fecha en domingo avisa que está cerrado, sin listar n
   const { ctx } = contexto();
   const r = await listarHorarios.run({ fecha: "2030-06-09" }, ctx);
   assert.ok(!r.ok);
-  assert.match(r.error, /domingo/);
+  assert.match(r.error, /no se atiende/);
 });
 
 test("listarHorarios: con fecha en el pasado pide una futura", async () => {
@@ -198,4 +198,101 @@ test("listarHorarios: con fecha en el pasado pide una futura", async () => {
   const r = await listarHorarios.run({ fecha: "2020-01-01" }, ctx);
   assert.ok(!r.ok);
   assert.match(r.error, /pasó/);
+});
+
+test("agendarCita: rechaza un domingo (cerrado en la base)", async () => {
+  const { db, ctx } = contexto();
+  await guardarLead.run(
+    { nombre: "Sandra", interes: "agente IA", telefono: "78402040" },
+    ctx,
+  );
+  const r = await agendarCita.run(
+    { lead: "78402040", fecha_hora: "2030-06-09T10:00:00", motivo: "evaluación" },
+    ctx,
+  );
+  assert.ok(!r.ok);
+  assert.match(r.error, /no se atiende/);
+  assert.equal(db.citas.length, 0);
+});
+
+test("agendarCita: rechaza una hora fuera del horario de atención", async () => {
+  const { db, ctx } = contexto();
+  await guardarLead.run(
+    { nombre: "Sandra", interes: "agente IA", telefono: "78402040" },
+    ctx,
+  );
+  const r = await agendarCita.run(
+    { lead: "78402040", fecha_hora: "2030-06-10T19:00:00", motivo: "evaluación" },
+    ctx,
+  );
+  assert.ok(!r.ok);
+  assert.match(r.error, /se atiende de 08:00 a 17:00/);
+  assert.equal(db.citas.length, 0);
+});
+
+test("agendarCita: acepta el último slot (16:30) y rechaza el cierre (17:00)", async () => {
+  const { db, ctx } = contexto();
+  await guardarLead.run(
+    { nombre: "Sandra", interes: "agente IA", telefono: "78402040" },
+    ctx,
+  );
+  const ultimo = await agendarCita.run(
+    { lead: "78402040", fecha_hora: "2030-06-10T16:30:00", motivo: "evaluación" },
+    ctx,
+  );
+  assert.ok(ultimo.ok);
+
+  const cierre = await agendarCita.run(
+    { lead: "78402040", fecha_hora: "2030-06-10T17:00:00", motivo: "evaluación" },
+    ctx,
+  );
+  assert.ok(!cierre.ok);
+  assert.equal(db.citas.length, 1);
+});
+
+test("agendarCita: una excepción de feriado bloquea el día completo", async () => {
+  const { db, ctx } = contexto();
+  db.excepciones.push({ fecha: "2030-06-10", motivo: "feriado", abre: null, cierra: null });
+  await guardarLead.run(
+    { nombre: "Sandra", interes: "agente IA", telefono: "78402040" },
+    ctx,
+  );
+  const r = await agendarCita.run(
+    { lead: "78402040", fecha_hora: "2030-06-10T10:00:00", motivo: "evaluación" },
+    ctx,
+  );
+  assert.ok(!r.ok);
+  assert.match(r.error, /feriado/);
+  assert.equal(db.citas.length, 0);
+});
+
+test("listarHorarios: con fecha en feriado explica el motivo real", async () => {
+  const { db, ctx } = contexto();
+  db.excepciones.push({ fecha: "2030-06-10", motivo: "feriado", abre: null, cierra: null });
+  const r = await listarHorarios.run({ fecha: "2030-06-10" }, ctx);
+  assert.ok(!r.ok);
+  assert.match(r.error, /feriado/);
+});
+
+test("listarHorarios: una excepción con horario especial recorta los slots", async () => {
+  const { db, ctx } = contexto();
+  db.excepciones.push({ fecha: "2030-06-10", motivo: "medio día", abre: "09:00", cierra: "12:00" });
+  const r = await listarHorarios.run({ fecha: "2030-06-10" }, ctx);
+  assert.ok(r.ok);
+  const horarios = horariosDe(r.data);
+  // 09:00–11:30 en pasos de 30 min = 6 slots.
+  assert.equal(horarios.length, 6);
+  assert.equal(horarios[0]?.iso, "2030-06-10T09:00:00");
+  assert.ok(horarios.every((h) => h.iso < "2030-06-10T12:00:00"));
+});
+
+test("listarHorarios: sin fecha avisa que la lista es parcial; con fecha no", async () => {
+  const { ctx } = contexto();
+  const horizonte = await listarHorarios.run({}, ctx);
+  assert.ok(horizonte.ok);
+  assert.match(String(horizonte.data.nota), /PARCIAL/);
+
+  const puntual = await listarHorarios.run({ fecha: "2030-06-10" }, ctx);
+  assert.ok(puntual.ok);
+  assert.equal(puntual.data.nota, undefined);
 });

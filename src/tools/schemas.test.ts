@@ -92,37 +92,3 @@ test("agendarCita: rechaza una hora fuera de la grilla :00/:30", () => {
   });
   assert.ok(!r.success);
 });
-
-test("agendarCita: rechaza un domingo (día cerrado)", () => {
-  const r = agendarCitaSchema.safeParse({
-    lead: "78402040",
-    fecha_hora: "2030-06-09T10:00:00", // domingo
-    motivo: "evaluación",
-  });
-  assert.ok(!r.success);
-});
-
-test("agendarCita: rechaza una hora fuera del horario de atención", () => {
-  const r = agendarCitaSchema.safeParse({
-    lead: "78402040",
-    fecha_hora: "2030-06-10T19:00:00", // lunes, pero ya cerrado
-    motivo: "evaluación",
-  });
-  assert.ok(!r.success);
-});
-
-test("agendarCita: acepta el último slot del día (16:30) y rechaza el cierre (17:00)", () => {
-  const ultimo = agendarCitaSchema.safeParse({
-    lead: "78402040",
-    fecha_hora: "2030-06-10T16:30:00",
-    motivo: "evaluación",
-  });
-  assert.ok(ultimo.success);
-
-  const cierre = agendarCitaSchema.safeParse({
-    lead: "78402040",
-    fecha_hora: "2030-06-10T17:00:00",
-    motivo: "evaluación",
-  });
-  assert.ok(!cierre.success);
-});

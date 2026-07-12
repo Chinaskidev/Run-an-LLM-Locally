@@ -63,3 +63,22 @@ enum Role {
   tool
   system
 }
+
+model HorarioAtencion {
+    id                String @id @default(cuid())
+    diaSemana         Int @unique //esto es el domingo cerrado que representa a 0...
+    abre              String? // a  las 8 
+    cierra            String? //17 horas 
+
+    @@map("horario_atencion")
+  }
+
+model ExcepcionDisponibilidad {
+    id           String @id @default(cuid())
+    fecha        String @unique 
+    motivo       String?
+    abre         String?
+    cierra       String?
+
+    @@map("excepciones_disponibilidad")
+  }

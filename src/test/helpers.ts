@@ -4,10 +4,6 @@ import type { Logger } from "../logger.js";
 import type { AssistantMessage, LlmClient } from "../agent/types.js";
 import type { RegisteredTool, ToolRegistry } from "../tools/types.js";
 
-// Dobles de prueba para correr el agente sin Postgres ni Ollama: todo en memoria y
-// determinista. El fake implementa SOLO los métodos de Prisma que tocan las tools y el
-// loop; el resto de la superficie de PrismaClient no se ejerce en estos tests, por eso
-// el doble cast `as unknown as PrismaClient` está justificado.
 
 interface FakeLead {
   id: string;
@@ -25,6 +21,19 @@ interface FakeCita {
   createdAt: Date;
 }
 
+interface FakeHorarioAtencion {
+  diaSemana: number;
+  abre: string | null;
+  cierra: string | null;
+}
+
+interface FakeExcepcion {
+  fecha: string;
+  motivo: string | null;
+  abre: string | null;
+  cierra: string | null;
+}
+
 interface FakeMessage {
   conversationId: string;
   role: string;
@@ -38,12 +47,24 @@ export interface FakeDb {
   readonly leads: FakeLead[];
   readonly citas: FakeCita[];
   readonly messages: FakeMessage[];
+  readonly horarios: FakeHorarioAtencion[];
+  readonly excepciones: FakeExcepcion[];
 }
 
 export function createFakeDb(): FakeDb {
   const leads: FakeLead[] = [];
   const citas: FakeCita[] = [];
   const messages: FakeMessage[] = [];
+  const horarios: FakeHorarioAtencion[] = [
+    { diaSemana: 0, abre: null, cierra: null },
+    { diaSemana: 1, abre: "08:00", cierra: "17:00" },
+    { diaSemana: 2, abre: "08:00", cierra: "17:00" },
+    { diaSemana: 3, abre: "08:00", cierra: "17:00" },
+    { diaSemana: 4, abre: "08:00", cierra: "17:00" },
+    { diaSemana: 5, abre: "08:00", cierra: "17:00" },
+    { diaSemana: 6, abre: "08:00", cierra: "17:00" },
+  ];
+  const excepciones: FakeExcepcion[] = [];
   let seq = 0;
   const nextId = (prefijo: string): string => `${prefijo}_${(seq += 1)}`;
 
@@ -143,6 +164,24 @@ export function createFakeDb(): FakeDb {
           .map((c) => ({ fechaHora: c.fechaHora }));
       },
     },
+    horarioAtencion: {
+      async findUnique({
+        where,
+      }: {
+        where: { diaSemana: number };
+      }): Promise<FakeHorarioAtencion | null> {
+        return horarios.find((h) => h.diaSemana === where.diaSemana) ?? null;
+      },
+    },
+    excepcionDisponibilidad: {
+      async findUnique({
+        where,
+      }: {
+        where: { fecha: string };
+      }): Promise<FakeExcepcion | null> {
+        return excepciones.find((e) => e.fecha === where.fecha) ?? null;
+      },
+    },
     message: {
       async create({
         data,
@@ -168,11 +207,11 @@ export function createFakeDb(): FakeDb {
     },
   };
 
-  return { prisma: fake as unknown as PrismaClient, leads, citas, messages };
+  return { prisma: fake as unknown as PrismaClient, leads, citas, messages, horarios, excepciones };
 }
 
 export function createFakeLogger(): Logger {
-  const noop = (): void => {};
+  const noop = (): void => { };
   return {
     info: noop,
     warn: noop,

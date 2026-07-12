@@ -1,7 +1,6 @@
 import { z } from "zod";
 
 import { OFFSET_EL_SALVADOR } from "./tiempo.js";
-import { validarContraHorario } from "./calendario.js";
 
 export const guardarLeadSchema = z
   .object({
@@ -40,14 +39,6 @@ export const agendarCitaSchema = z.object({
             (d.getMinutes() === 0 || d.getMinutes() === 30) && d.getSeconds() === 0,
           "la hora debe caer en :00 o :30",
         )
-        // La regla de negocio se valida acá, no en el prompt: aunque el modelo
-        // intente agendar un domingo o de madrugada, el código la rechaza con el motivo.
-        .superRefine((d, ctx) => {
-          const motivo = validarContraHorario(d);
-          if (motivo !== null) {
-            ctx.addIssue({ code: z.ZodIssueCode.custom, message: motivo });
-          }
-        }),
     ),
   motivo: z.string().trim().min(1, "el motivo es obligatorio"),
 });
