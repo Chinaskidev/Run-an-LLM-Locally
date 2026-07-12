@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { OFFSET_EL_SALVADOR } from "./tiempo.js";
+
 export const guardarLeadSchema = z
   .object({
     nombre: z.string().trim().min(1, "el nombre es obligatorio"),
@@ -18,11 +20,6 @@ export const guardarLeadSchema = z
   });
 
 export type GuardarLeadArgs = z.infer<typeof guardarLeadSchema>;
-
-// El negocio opera en El Salvador: UTC-6 fijo, sin horario de verano. El modelo manda
-// la hora sin zona ("...T10:00:00"); la anclamos a -06:00 para que el instante guardado
-// sea el mismo corra donde corra el proceso (tu máquina en CST vs un servidor en UTC).
-const OFFSET_EL_SALVADOR = "-06:00";
 
 export const agendarCitaSchema = z.object({
   lead: z.string().trim().min(1, "indicá el lead (nombre o teléfono)"),
@@ -47,3 +44,11 @@ export const agendarCitaSchema = z.object({
 });
 
 export type AgendarCitaArgs = z.infer<typeof agendarCitaSchema>;
+
+export const listarHorariosSchema = z.object({
+  // Horizonte hacia adelante. Lo damos opcional con default: una decisión menos que el
+  // modelo chico puede errar. `coerce` tolera que el modelo lo mande como string ("7").
+  dias: z.coerce.number().int().min(1).max(14).default(7),
+});
+
+export type ListarHorariosArgs = z.infer<typeof listarHorariosSchema>;
