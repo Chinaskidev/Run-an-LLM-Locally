@@ -42,6 +42,7 @@ export function createOllamaClient(deps: OllamaDeps): LlmClient {
         messages: messages.map(toOllamaMessage),
         tools,
         stream: false,
+        think: false,
         options: { temperature: TEMPERATURE },
       });
 

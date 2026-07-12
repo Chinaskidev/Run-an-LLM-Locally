@@ -1,13 +1,12 @@
 import { defineTool } from "./types.js";
 import { listarHorariosSchema } from "./schemas.js";
 import { enHoraLocal, OFFSET_EL_SALVADOR, TZ_EL_SALVADOR } from "./tiempo.js";
+import { DIA_CERRADO, HORA_APERTURA, HORA_CIERRE, diaSemanaSV } from "./calendario.js";
 
-// Reglas de negocio del calendario. Viven en el CÓDIGO, no en el prompt: un modelo chico
-// no decide la disponibilidad, solo ofrece lo que esta tool le devuelve ya resuelto.
-const HORA_APERTURA = 8; // primer slot 08:00
-const HORA_CIERRE = 17; // último slot 16:30 (la cita de media hora cierra a las 17:00)
 const MAX_OFRECIDOS = 3; // pocos y claros: no abrumamos al modelo ni al cliente
-const DIA_CERRADO = "Sun"; // se atiende lun–sáb; solo el domingo no
+// Un día completo tiene 18 slots (8:00–16:30). Cuando el cliente preguntó por ESE día,
+// devolverlos todos es información factual, no ruido: evita el falso "no hay".
+const MAX_DIA_PUNTUAL = 18;
 
 const pad = (n: number): string => String(n).padStart(2, "0");
 
@@ -25,28 +24,23 @@ function fechaParedSV(instante: Date): { anio: number; mes: number; dia: number 
   return { anio: valor("year"), mes: valor("month"), dia: valor("day") };
 }
 
-// Día de la semana (abreviado en-US: "Sun".."Sat") calculado EN El Salvador. No usamos
-// Date.getDay(): ese mira la TZ del proceso y clasifica mal los bordes de medianoche en
-// un server UTC. Acá el criterio es siempre la zona del negocio.
-function diaSemanaSV(instante: Date): string {
-  return new Intl.DateTimeFormat("en-US", {
-    timeZone: TZ_EL_SALVADOR,
-    weekday: "short",
-  }).format(instante);
-}
-
 const UN_DIA_MS = 24 * 60 * 60 * 1000;
 
 export const listarHorarios = defineTool({
   name: "listar_horarios_disponibles",
   description:
-    "Devuelve los próximos horarios libres para agendar, ya calculados con su día y fecha correctos y sin los que ya están ocupados. Llamala SIEMPRE antes de ofrecerle horarios al cliente: ofrecé solo lo que devuelva (campo 'etiqueta') y, al agendar, pasale a agendar_cita el campo 'iso' tal cual.",
+    "Devuelve horarios libres para agendar, ya calculados con su día y fecha correctos y sin los ocupados. Llamala SIEMPRE antes de ofrecer u opinar sobre horarios. Si el cliente pregunta por un día puntual, pasá ese día en 'fecha' (YYYY-MM-DD). Ofrecé solo lo que devuelva (campo 'etiqueta') y, al agendar, pasale a agendar_cita el campo 'iso' tal cual.",
   parameters: {
     type: "object",
     properties: {
       dias: {
         type: "integer",
         description: "Cuántos días hacia adelante mirar (opcional, por defecto 7)",
+      },
+      fecha: {
+        type: "string",
+        description:
+          "Día puntual que pidió el cliente, formato YYYY-MM-DD (opcional)",
       },
     },
     required: [],
@@ -72,14 +66,40 @@ export const listarHorarios = defineTool({
       `${hoy.anio}-${pad(hoy.mes)}-${pad(hoy.dia)}T00:00:00${OFFSET_EL_SALVADOR}`,
     );
 
+    // Días candidatos: el puntual que pidió el cliente, o el horizonte desde hoy.
+    let candidatos: Date[];
+    let maximo: number;
+
+    if (args.fecha !== undefined) {
+      const diaPedido = new Date(`${args.fecha}T00:00:00${OFFSET_EL_SALVADOR}`);
+      if (Number.isNaN(diaPedido.getTime())) {
+        return { ok: false, error: `La fecha ${args.fecha} no existe en el calendario.` };
+      }
+      if (diaPedido.getTime() < medianocheHoy) {
+        return { ok: false, error: `${args.fecha} ya pasó; pedile al cliente una fecha futura.` };
+      }
+      if (diaSemanaSV(diaPedido) === DIA_CERRADO) {
+        return { ok: false, error: "Ese día es domingo y no se atiende; ofrecé otro día de lunes a sábado." };
+      }
+      candidatos = [diaPedido];
+      maximo = MAX_DIA_PUNTUAL;
+    } else {
+      candidatos = [];
+      for (let i = 0; i <= args.dias; i += 1) {
+        const baseDia = new Date(medianocheHoy + i * UN_DIA_MS);
+        if (diaSemanaSV(baseDia) === DIA_CERRADO) continue;
+        candidatos.push(baseDia);
+      }
+      maximo = MAX_OFRECIDOS;
+    }
+
     const horarios: Array<{ etiqueta: string; iso: string }> = [];
 
-    for (let i = 0; i <= args.dias && horarios.length < MAX_OFRECIDOS; i += 1) {
-      const baseDia = new Date(medianocheHoy + i * UN_DIA_MS);
-      if (diaSemanaSV(baseDia) === DIA_CERRADO) continue;
+    for (const baseDia of candidatos) {
+      if (horarios.length >= maximo) break;
       const { anio, mes, dia } = fechaParedSV(baseDia);
 
-      for (let h = HORA_APERTURA; h < HORA_CIERRE; h += 1) {
+      for (let h = HORA_APERTURA; h < HORA_CIERRE && horarios.length < maximo; h += 1) {
         for (const min of [0, 30]) {
           // iso SIN zona: es lo que espera agendar_cita, que le ancla -06:00 al validar.
           const iso = `${anio}-${pad(mes)}-${pad(dia)}T${pad(h)}:${pad(min)}:00`;
@@ -89,9 +109,8 @@ export const listarHorarios = defineTool({
           if (tomadas.has(instante.getTime())) continue; // ocupado
 
           horarios.push({ etiqueta: enHoraLocal(instante), iso });
-          if (horarios.length >= MAX_OFRECIDOS) break;
+          if (horarios.length >= maximo) break;
         }
-        if (horarios.length >= MAX_OFRECIDOS) break;
       }
     }
 
@@ -99,7 +118,9 @@ export const listarHorarios = defineTool({
       return {
         ok: false,
         error:
-          "No hay horarios libres en el rango pedido. Probá con un horizonte de más días.",
+          args.fecha !== undefined
+            ? `No quedan horarios libres el ${args.fecha}. Ofrecé otro día.`
+            : "No hay horarios libres en el rango pedido. Probá con un horizonte de más días.",
       };
     }
 

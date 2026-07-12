@@ -97,11 +97,15 @@ export function createAgent(deps: AgentDeps): Agent {
             resultJson = JSON.stringify(outcome);
           }
 
-          history.push({
+          const toolMsg: ChatMessage = {
             role: "tool",
             content: resultJson,
             tool_name: call.name,
-          });
+          };
+          if (call.id !== undefined) {
+            toolMsg.tool_call_id = call.id;
+          }
+          history.push(toolMsg);
           await persist("tool", resultJson, {
             toolName: call.name,
             toolArgs: call.arguments,

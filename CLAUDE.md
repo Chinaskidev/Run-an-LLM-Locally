@@ -12,11 +12,13 @@ manda la skill.
 
 ## Restricciones duras (no negociables)
 
-- **Todo local, cero nube.** El LLM corre en Ollama (`OLLAMA_HOST`). No agregar APIs
-  externas ni providers cloud. (Esto hace que la skill `claude-api` del harness caiga
-  en su propia cláusula SKIP: el proyecto usa Ollama, no Anthropic.)
+- **Local por defecto; nube opt-in.** El default es Ollama (`LLM_PROVIDER=ollama`,
+  `OLLAMA_HOST`). `LLM_PROVIDER=openrouter` habilita OpenRouter (API OpenAI-compatible,
+  `src/llm/openrouter.ts`) para benchmarking — trade-off consciente: los datos del lead
+  salen a un tercero. No agregar otros providers salvo como implementaciones de
+  `LlmClient`; el loop nunca sabe qué provider corre.
 - **Modelo swappable por env `MODEL`.** Nunca hardcodear el nombre del modelo; el punto
-  del experimento es comparar `ministral-3:8b` vs `qwen2.5:7b` sin tocar código.
+  del experimento es comparar modelos (locales y de nube) sin tocar código.
 - **TypeScript strict.** Sin `any` sin justificar (los casts existentes están comentados
   con su porqué), sin `var`. El proyecto usa `exactOptionalPropertyTypes` y
   `noUncheckedIndexedAccess`: las propiedades opcionales se agregan condicionalmente, no

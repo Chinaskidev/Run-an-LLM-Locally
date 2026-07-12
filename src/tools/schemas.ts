@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import { OFFSET_EL_SALVADOR } from "./tiempo.js";
+import { validarContraHorario } from "./calendario.js";
 
 export const guardarLeadSchema = z
   .object({
@@ -38,7 +39,15 @@ export const agendarCitaSchema = z.object({
           (d) =>
             (d.getMinutes() === 0 || d.getMinutes() === 30) && d.getSeconds() === 0,
           "la hora debe caer en :00 o :30",
-        ),
+        )
+        // La regla de negocio se valida acá, no en el prompt: aunque el modelo
+        // intente agendar un domingo o de madrugada, el código la rechaza con el motivo.
+        .superRefine((d, ctx) => {
+          const motivo = validarContraHorario(d);
+          if (motivo !== null) {
+            ctx.addIssue({ code: z.ZodIssueCode.custom, message: motivo });
+          }
+        }),
     ),
   motivo: z.string().trim().min(1, "el motivo es obligatorio"),
 });
@@ -46,9 +55,13 @@ export const agendarCitaSchema = z.object({
 export type AgendarCitaArgs = z.infer<typeof agendarCitaSchema>;
 
 export const listarHorariosSchema = z.object({
-  // Horizonte hacia adelante. Lo damos opcional con default: una decisión menos que el
-  // modelo chico puede errar. `coerce` tolera que el modelo lo mande como string ("7").
   dias: z.coerce.number().int().min(1).max(14).default(7),
+  // dias puntuales cuando el cliente pregunte.
+  fecha: z
+    .string()
+    .trim()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, "fecha inválida: usá el formato YYYY-MM-DD")
+    .optional(),
 });
 
 export type ListarHorariosArgs = z.infer<typeof listarHorariosSchema>;

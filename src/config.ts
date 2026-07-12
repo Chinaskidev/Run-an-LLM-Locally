@@ -1,21 +1,30 @@
 import { z } from "zod";
 
-// Carga .env si existe (desarrollo). En producción las vars vienen del entorno
-// real, por eso un .env ausente no es un error.
 try {
   process.loadEnvFile();
 } catch {
-  // sin .env: seguimos con process.env tal cual está
 }
 
-const envSchema = z.object({
-  DATABASE_URL: z.string().url(),
-  OLLAMA_HOST: z.string().url().default("http://127.0.0.1:11434"),
-  MODEL: z.string().min(1),
-  LOG_LEVEL: z
-    .enum(["debug", "info", "warn", "error"])
-    .default("info"),
-});
+const envSchema = z
+  .object({
+    DATABASE_URL: z.string().url(),
+    LLM_PROVIDER: z.enum(["ollama", "openrouter"]).default("ollama"),
+    OLLAMA_HOST: z.string().url().default("http://127.0.0.1:11434"),
+    OPENROUTER_API_KEY: z.string().min(1).optional(),
+    MODEL: z.string().min(1),
+    LOG_LEVEL: z
+      .enum(["debug", "info", "warn", "error"])
+      .default("info"),
+  })
+  .superRefine((env, ctx) => {
+    if (env.LLM_PROVIDER === "openrouter" && env.OPENROUTER_API_KEY === undefined) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["OPENROUTER_API_KEY"],
+        message: "es requerida cuando LLM_PROVIDER=openrouter",
+      });
+    }
+  });
 
 export type Config = Readonly<z.infer<typeof envSchema>>;
 
